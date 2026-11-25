@@ -1,10 +1,10 @@
 CODE_SIGN_STYLE = Automatic
-CURRENT_PROJECT_VERSION = 14
+CURRENT_PROJECT_VERSION = 16
 GENERATE_INFOPLIST_FILE = YES
 INFOPLIST_KEY_CFBundleDisplayName = notes
 INFOPLIST_KEY_UILaunchScreen_Generation = YES
 INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-MARKETING_VERSION = 1.8
+MARKETING_VERSION = 1.10
 PRODUCT_BUNDLE_IDENTIFIER = study.polya.notebooks
 PRODUCT_NAME = Polya
 SUPPORTED_PLATFORMS = iphoneos iphonesimulator

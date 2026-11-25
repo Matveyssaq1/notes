@@ -120,6 +120,18 @@ final class Library: ObservableObject {
         _ = commitFolders([NoteFolder(title: title, parent: parent)] + folders)
     }
 
+    func moveFolder(_ id: UUID, to parent: UUID?) -> Bool {
+        guard let index = folders.firstIndex(where: { $0.id == id }), parent != id else { return false }
+        var cursor = parent
+        while let current = cursor {
+            if current == id { return false }
+            cursor = folders.first(where: { $0.id == current })?.parent
+        }
+        var next = folders
+        next[index].parent = parent
+        return commitFolders(next)
+    }
+
     func deleteFolder(_ id: UUID) -> Bool {
         guard let removed = folders.first(where: { $0.id == id }) else { return false }
         var books = notebooks

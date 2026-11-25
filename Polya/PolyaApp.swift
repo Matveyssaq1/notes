@@ -39,15 +39,115 @@ private struct GlassPanel: ViewModifier {
     }
 }
 
+private enum LibraryLayout: String, CaseIterable, Identifiable {
+    case grid, list, finder
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .grid: "Сетка"
+        case .list: "Список"
+        case .finder: "Папки, как в Finder"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .grid: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .finder: "folder"
+        }
+    }
+}
+
+private enum LibraryFilter: String, CaseIterable, Identifiable {
+    case all, notebooks, boards, pdfs, folders
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .all: "Всё"
+        case .notebooks: "Тетради"
+        case .boards: "Доски"
+        case .pdfs: "Импортированные PDF"
+        case .folders: "Папки"
+        }
+    }
+    func accepts(_ book: Notebook) -> Bool {
+        switch self {
+        case .all: true
+        case .notebooks: !book.board
+        case .boards: book.board
+        case .pdfs: book.importedPages != nil
+        case .folders: false
+        }
+    }
+}
+
+private enum LibrarySort: String, CaseIterable, Identifiable {
+    case created, name, pages
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .created: "Сначала новые"
+        case .name: "По названию"
+        case .pages: "По числу листов"
+        }
+    }
+    func ordered(_ lhs: Notebook, _ rhs: Notebook) -> Bool {
+        switch self {
+        case .created: lhs.created > rhs.created
+        case .name: lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        case .pages: lhs.pages.count > rhs.pages.count
+        }
+    }
+}
+
+private enum ExportFormat: String, CaseIterable, Identifiable {
+    case pdf, png, jpeg, text, notion
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .pdf: "PDF"
+        case .png: "PNG"
+        case .jpeg: "JPEG"
+        case .text: "Текст"
+        case .notion: "Notion"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .pdf: "Вся тетрадь, с рукописью и текстом"
+        case .png: "Текущий лист, без сжатия"
+        case .jpeg: "Текущий лист, меньший размер"
+        case .text: "Распечатанный текст всех листов"
+        case .notion: "Создать страницу с PDF в Notion"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .pdf: "doc.richtext"
+        case .png: "photo"
+        case .jpeg: "photo.on.rectangle"
+        case .text: "doc.plaintext"
+        case .notion: "arrow.up.right.square"
+        }
+    }
+    var pageOnly: Bool { self == .png || self == .jpeg }
+    var contentType: UTType {
+        switch self {
+        case .pdf, .notion: .pdf
+        case .png: .png
+        case .jpeg: .jpeg
+        case .text: .plainText
+        }
+    }
+}
+
 @main
 struct PolyaApp: App {
     @StateObject private var library = Library()
-    @AppStorage("darkPaper") private var dark = false
 
     var body: some Scene {
         WindowGroup {
-            LibraryView(library: library, dark: $dark)
-                .preferredColorScheme(dark ? .dark : .light)
+            LibraryView(library: library)
                 .tint(PolyaColors.accent)
         }
     }
@@ -55,17 +155,18 @@ struct PolyaApp: App {
 
 private struct LibraryView: View {
     @ObservedObject var library: Library
-    @Binding var dark: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    private var dark: Bool { colorScheme == .dark }
     @State private var path: [UUID] = []
     @State private var openBooks: [UUID] = []
     @State private var positions: [UUID: UUID] = [:]
 
     var body: some View {
         NavigationStack(path: $path) {
-            Shelf(library: library, dark: $dark, path: $path)
+            Shelf(library: library, dark: dark, path: $path)
                 .navigationDestination(for: UUID.self) { id in
                     if let book = library.notebooks.first(where: { $0.id == id }) {
-                        NotebookView(library: library, book: book, dark: $dark, position: Binding(
+                        NotebookView(library: library, book: book, dark: dark, position: Binding(
                             get: { positions[id] }, set: { positions[id] = $0 }
                         ), tabs: openBooks.compactMap { tab in library.notebooks.first { $0.id == tab } },
                         showLibrary: { _ = path.popLast() },
@@ -82,7 +183,7 @@ private struct LibraryView: View {
                             if !openBooks.contains(id) { openBooks.append(id) }
                         }
                     } else if let folder = library.folders.first(where: { $0.id == id }) {
-                        Shelf(library: library, dark: $dark, path: $path, folder: folder)
+                        Shelf(library: library, dark: dark, path: $path, folder: folder)
                     }
                 }
         }
@@ -111,7 +212,7 @@ private struct Shelf: View {
     }
 
     @ObservedObject var library: Library
-    @Binding var dark: Bool
+    let dark: Bool
     @Binding var path: [UUID]
     var folder: NoteFolder?
     @State private var creation: Creation?
@@ -125,42 +226,78 @@ private struct Shelf: View {
     @AppStorage("libraryFavorites") private var favoritesRaw = ""
     @Environment(\.horizontalSizeClass) private var horizontalSize
     @State private var favoritesOnly = false
-    @AppStorage("libraryListView") private var listView = false
+    @AppStorage("libraryLayout") private var layout = LibraryLayout.grid
+    @AppStorage("libraryFilter") private var filter = LibraryFilter.all
+    @AppStorage("librarySort") private var sort = LibrarySort.created
+    @AppStorage("libraryRailVisible") private var railVisible = true
 
     private var favorites: Set<String> { Set(favoritesRaw.split(separator: ",").map(String.init)) }
 
-    private var heading: String { folder?.title ?? (favoritesOnly ? "Избранное" : "Документы") }
+    private var heading: String {
+        if let folder { return folder.title }
+        if filter != .all { return filter.title }
+        return favoritesOnly ? "Избранное" : "Документы"
+    }
 
     private var books: [Notebook] {
         let scope = favoritesOnly ? library.notebooks.filter { favorites.contains($0.id.uuidString) } : library.notebooks
-        if !search.isEmpty { return scope.filter { $0.title.localizedCaseInsensitiveContains(search) || ($0.pageText?.values.contains { $0.localizedCaseInsensitiveContains(search) } ?? false) || ($0.recognizedText?.values.contains { $0.localizedCaseInsensitiveContains(search) } ?? false) } }
-        return favoritesOnly ? scope : scope.filter { $0.folderID == folder?.id }
+        let matching: [Notebook]
+        if !search.isEmpty {
+            matching = scope.filter { $0.title.localizedCaseInsensitiveContains(search) || ($0.pageText?.values.contains { $0.localizedCaseInsensitiveContains(search) } ?? false) || ($0.recognizedText?.values.contains { $0.localizedCaseInsensitiveContains(search) } ?? false) }
+        } else {
+            matching = favoritesOnly ? scope : scope.filter { $0.folderID == folder?.id }
+        }
+        return matching.filter { filter.accepts($0) }.sorted(by: sort.ordered)
     }
 
     private var folders: [NoteFolder] {
+        guard filter == .all || filter == .folders else { return [] }
         let scope = favoritesOnly ? library.folders.filter { favorites.contains($0.id.uuidString) } : library.folders
         if !search.isEmpty { return scope.filter { $0.title.localizedCaseInsensitiveContains(search) } }
-        return favoritesOnly ? scope : scope.filter { $0.parent == folder?.id }
+        return (favoritesOnly ? scope : scope.filter { $0.parent == folder?.id })
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
+
+    private var showsRail: Bool { folder == nil && horizontalSize == .regular && !showsSearch }
 
     var body: some View {
         HStack(spacing: 0) {
-            if folder == nil && horizontalSize == .regular && !showsSearch {
+            if showsRail && railVisible {
                 rail
+                    .transition(.move(edge: .leading).combined(with: .opacity))
                 Divider()
             }
             content
         }
+        .animation(.smooth(duration: 0.25), value: railVisible)
         .background(PolyaColors.background)
         .navigationTitle(heading)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            if showsRail {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(railVisible ? "Скрыть панель" : "Показать панель", systemImage: "sidebar.left") {
+                        railVisible.toggle()
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(listView ? "Показать сетку" : "Показать список",
-                       systemImage: listView ? "square.grid.2x2" : "list.bullet") { listView.toggle() }
-                    .labelStyle(.iconOnly)
+                Menu("Фильтр и сортировка", systemImage: "line.3.horizontal.decrease.circle") {
+                    Picker("Показать", selection: $filter) {
+                        ForEach(LibraryFilter.allCases) { Text($0.title).tag($0) }
+                    }
+                    Picker("Сортировка", selection: $sort) {
+                        ForEach(LibrarySort.allCases) { Text($0.title).tag($0) }
+                    }
+                }
+                .labelStyle(.iconOnly)
+                Menu("Вид", systemImage: layout.symbol) {
+                    Picker("Вид", selection: $layout) {
+                        ForEach(LibraryLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                    }
+                }
+                .labelStyle(.iconOnly)
                 Menu("Настройки", systemImage: "ellipsis.circle") {
-                    ThemeButton(dark: $dark)
                     Button("Настройки Notion", systemImage: "gearshape") { notion = true }
                 }
                 .labelStyle(.iconOnly)
@@ -206,20 +343,30 @@ private struct Shelf: View {
             Text(item.isFolder ? "Содержимое переместится на уровень выше." : "Страницы и аудиозаписи будут удалены без возможности восстановления.")
         }
         .sheet(isPresented: $notion) { NotionSettings() }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf]) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.pdf], allowsMultipleSelection: true) { result in
             do {
-                let url = try result.get()
-                let access = url.startAccessingSecurityScopedResource()
-                defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let data = try Data(contentsOf: url, options: .mappedIfSafe)
-                guard let document = PDFDocument(data: data), !document.isLocked, document.pageCount > 0 else {
-                    throw CocoaError(.fileReadCorruptFile)
+                var imported: [UUID] = []
+                var failures: [String] = []
+                for url in try result.get() {
+                    do {
+                        let access = url.startAccessingSecurityScopedResource()
+                        defer { if access { url.stopAccessingSecurityScopedResource() } }
+                        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                        guard let document = PDFDocument(data: data), !document.isLocked, document.pageCount > 0 else {
+                            throw CocoaError(.fileReadCorruptFile)
+                        }
+                        imported.append(try library.importPDF(title: url.deletingPathExtension().lastPathComponent,
+                                                              data: data, count: document.pageCount, folderID: folder?.id))
+                    } catch { failures.append(url.lastPathComponent) }
                 }
-                let id = try library.importPDF(title: url.deletingPathExtension().lastPathComponent,
-                                               data: data, count: document.pageCount, folderID: folder?.id)
-                favoritesOnly = false
-                search = ""
-                path.append(id)
+                if !failures.isEmpty {
+                    library.error = "Не удалось импортировать: " + failures.joined(separator: ", ")
+                }
+                if let last = imported.last {
+                    favoritesOnly = false
+                    search = ""
+                    if imported.count == 1 { path.append(last) }
+                }
             } catch { library.error = "Не удалось импортировать PDF: \(error.localizedDescription)" }
         }
     }
@@ -317,12 +464,29 @@ private struct Shelf: View {
     }
 
     private var cards: some View {
-        LazyVGrid(columns: [GridItem(listView ? .flexible() : .adaptive(minimum: 190), spacing: 20)], alignment: .leading, spacing: 24) {
+        LazyVGrid(columns: [GridItem(layout == .grid ? .adaptive(minimum: 190) : .flexible(), spacing: 20)], alignment: .leading, spacing: layout == .grid ? 24 : 4) {
+            if layout == .finder, let folder {
+                Button { _ = path.popLast() } label: {
+                    Label("Вверх", systemImage: "arrow.turn.left.up")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .dropDestination(for: String.self) { items, _ in moveItems(items, into: folder.parent) }
+                .accessibilityLabel("Вверх, в папку уровнем выше")
+            }
             ForEach(folders) { item in
-                shelfItem(item.title, subtitle: "Папка", symbol: "folder.fill", id: item.id) {
+                shelfItem(item.title, subtitle: "Папка", symbol: "folder.fill", id: item.id, folderTarget: true) {
                     favoriteButton(item.id)
                     Button("Удалить…", systemImage: "trash", role: .destructive) {
                         pendingDeletion = (item.id, item.title, true)
+                    }
+                    Menu("Переместить", systemImage: "folder") {
+                        Button("В библиотеку") { _ = library.moveFolder(item.id, to: nil) }
+                        ForEach(library.folders.filter { $0.id != item.id }) { target in
+                            Button(folderPath(target)) { _ = library.moveFolder(item.id, to: target.id) }
+                        }
                     }
                 }
             }
@@ -352,11 +516,11 @@ private struct Shelf: View {
     }
 
     private func shelfItem<Actions: View>(_ title: String, subtitle: String, symbol: String,
-                                          id: UUID, book: Notebook? = nil,
+                                          id: UUID, book: Notebook? = nil, folderTarget: Bool = false,
                                           @ViewBuilder actions: () -> Actions) -> some View {
         let menu = actions()
         return NavigationLink(value: id) {
-            if listView {
+            if layout != .grid {
                 HStack(spacing: 14) {
                     Image(systemName: symbol)
                         .foregroundStyle(book?.coverColor?.color ?? PolyaColors.accent)
@@ -389,6 +553,25 @@ private struct Shelf: View {
             }
             .accessibilityLabel("Действия: \(title)")
         }
+        .draggable(id.uuidString)
+        .dropDestination(for: String.self) { items, _ in
+            guard folderTarget else { return false }
+            return moveItems(items, into: id)
+        }
+    }
+
+    private func moveItems(_ items: [String], into parent: UUID?) -> Bool {
+        var moved = false
+        for raw in items {
+            guard let id = UUID(uuidString: raw), id != parent else { continue }
+            if library.folders.contains(where: { $0.id == id }) {
+                moved = library.moveFolder(id, to: parent) || moved
+            } else if library.notebooks.contains(where: { $0.id == id }) {
+                library.move(id, to: parent)
+                moved = true
+            }
+        }
+        return moved
     }
 
     private func folderPath(_ folder: NoteFolder) -> String {
@@ -503,41 +686,91 @@ private struct FirstPageCover: View {
     }
 }
 
-private struct ThemeButton: View {
-    @Binding var dark: Bool
+private struct ExportFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.pdf, .png, .jpeg, .plainText] }
+    let data: Data
+    let type: UTType
+
+    init(data: Data, type: UTType) {
+        self.data = data
+        self.type = type
+    }
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        self.data = data
+        type = .pdf
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+private struct ExportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let name: String
+    let pageName: String
+    let board: Bool
+    let render: (ExportFormat) throws -> Data
+    let notion: () -> Void
+    @State private var file: ExportFile?
+    @State private var fileName = ""
+    @State private var error: String?
 
     var body: some View {
-        Button(dark ? "Светлая тема" : "Тёмная тема", systemImage: dark ? "sun.max" : "moon") {
-            dark.toggle()
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(ExportFormat.allCases.filter { $0 != .notion }) { format in
+                        Button { save(format) } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(format.title)
+                                    Text(format.detail).font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: format.symbol)
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        .disabled(board && format.pageOnly)
+                    }
+                } header: {
+                    Text("Сохранить файл")
+                } footer: {
+                    if board { Text("Для доски доступен экспорт в PDF и текст.") }
+                }
+                Section {
+                    Button("Отправить в Notion", systemImage: ExportFormat.notion.symbol) {
+                        dismiss()
+                        notion()
+                    }
+                } footer: {
+                    Text(ExportFormat.notion.detail)
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+            }
+            .navigationTitle("Экспорт")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } }
+            }
+        }
+        .fileExporter(isPresented: Binding(get: { file != nil }, set: { if !$0 { file = nil } }),
+                      document: file, contentType: file?.type ?? .pdf, defaultFilename: fileName) { result in
+            if case .failure(let failure) = result { error = failure.localizedDescription }
+            file = nil
         }
     }
-}
 
-private struct PDFExport: FileDocument {
-    static var readableContentTypes: [UTType] { [.pdf] }
-    let data: Data
-
-    init(data: Data) { self.data = data }
-    init(configuration: ReadConfiguration) throws {
-        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
-        self.data = data
-    }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
-    }
-}
-
-private struct PNGExport: FileDocument {
-    static var readableContentTypes: [UTType] { [.png] }
-    let data: Data
-
-    init(data: Data) { self.data = data }
-    init(configuration: ReadConfiguration) throws {
-        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
-        self.data = data
-    }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
+    private func save(_ format: ExportFormat) {
+        error = nil
+        do {
+            let data = try render(format)
+            fileName = format.pageOnly ? pageName : name
+            file = ExportFile(data: data, type: format.contentType)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -545,7 +778,7 @@ private struct NotebookView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var library: Library
     let book: Notebook
-    @Binding var dark: Bool
+    let dark: Bool
     @AppStorage("notionParent") private var notionParent = ""
     @Binding var position: UUID?
     let tabs: [Notebook]
@@ -584,10 +817,7 @@ private struct NotebookView: View {
     @State private var exporting = false
     @State private var exportError: String?
     @State private var notionURL: URL?
-    @State private var pdf: PDFExport?
-    @State private var savingPDF = false
-    @State private var pngExport: PNGExport?
-    @State private var savingPNG = false
+    @State private var exportSheet = false
     @State private var sourcePDF: PDFDocument?
     @State private var showAudio = false
     @StateObject private var audio = LectureAudio()
@@ -682,7 +912,6 @@ private struct NotebookView: View {
                     showAudio = true
                 }.labelStyle(.iconOnly)
                 Button("На весь экран", systemImage: "arrow.up.left.and.arrow.down.right") { focusMode = true }
-                ThemeButton(dark: $dark).labelStyle(.iconOnly)
                 Menu("Действия", systemImage: "ellipsis.circle") {
                     Button("Переименовать", systemImage: "square.and.pencil") { name = book.title; renaming = true }
                     Menu("Разметка бумаги", systemImage: "square.grid.3x3") {
@@ -699,9 +928,10 @@ private struct NotebookView: View {
                     }.disabled(book.board)
                     Button(recognizing ? "Распознавание…" : "Распознать текст листа", systemImage: "text.viewfinder") { recognizePage() }
                         .disabled(recognizing || book.board)
-                    Button("Сохранить PDF", systemImage: "square.and.arrow.down") { savePDF() }
-                    Button("Сохранить лист как PNG", systemImage: "photo") { savePNG() }
-                        .disabled(book.board)
+                    Button("Экспорт…", systemImage: "square.and.arrow.up") {
+                        guard flush() else { return }
+                        exportSheet = true
+                    }
                     Button("Отправить в Notion", systemImage: "arrow.up.right.square") { sendToNotion() }
                         .disabled(exporting || !unsaved.isEmpty)
                     if exporting { Text("Отправка…") }
@@ -757,11 +987,9 @@ private struct NotebookView: View {
             if sourcePDF == nil { library.error = "Не удалось открыть исходный PDF." }
         }
         .onDisappear { audio.stop() }
-        .fileExporter(isPresented: $savingPDF, document: pdf, contentType: .pdf, defaultFilename: book.title) { result in
-            if case .failure(let error) = result { exportError = error.localizedDescription }
-        }
-        .fileExporter(isPresented: $savingPNG, document: pngExport, contentType: .png, defaultFilename: "\(book.title), лист \(pageNumber)") { result in
-            if case .failure(let error) = result { exportError = error.localizedDescription }
+        .sheet(isPresented: $exportSheet) {
+            ExportSheet(name: book.title, pageName: "\(book.title), лист \(pageNumber)", board: book.board,
+                        render: { try exportData($0) }, notion: { sendToNotion() })
         }
         .alert("Экспорт", isPresented: Binding(
             get: { exportError != nil },
@@ -1237,30 +1465,34 @@ private struct NotebookView: View {
         } catch { exportError = error.localizedDescription }
     }
 
-    private func savePDF() {
-        guard flush() else { return }
-        do {
-            pdf = PDFExport(data: try makePDF())
-            savingPDF = true
-        } catch { exportError = error.localizedDescription }
+    private func exportData(_ format: ExportFormat) throws -> Data {
+        guard flush() else { throw CocoaError(.fileWriteUnknown) }
+        switch format {
+        case .pdf, .notion:
+            return try makePDF()
+        case .png, .jpeg:
+            guard let page = activePage else { throw CocoaError(.fileReadNoSuchFile) }
+            let image = try pageImage(page)
+            if format == .png {
+                guard let data = image.pngData() else { throw CocoaError(.fileWriteUnknown) }
+                return data
+            }
+            guard let data = image.jpegData(compressionQuality: 0.9) else { throw CocoaError(.fileWriteUnknown) }
+            return data
+        case .text:
+            let text = book.pages.map { book.pageText?[$0] ?? "" }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+            return Data(text.utf8)
+        }
     }
 
-    private func savePNG() {
-        guard flush(), let page = activePage else { return }
-        do {
-            pngExport = PNGExport(data: try pagePNG(page))
-            savingPNG = true
-        } catch { exportError = error.localizedDescription }
-    }
-
-    private func pagePNG(_ id: UUID) throws -> Data {
+    private func pageImage(_ id: UUID) throws -> UIImage {
         let pdf = background(id)
         if book.importedPages?[id] != nil && pdf == nil { throw CocoaError(.fileReadCorruptFile) }
         let drawing = try library.drawing(id).map { try PKDrawing(data: $0) } ?? PKDrawing()
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
         let appearance = UITraitCollection(userInterfaceStyle: dark && pdf == nil ? .dark : .light)
-        let image = UIGraphicsImageRenderer(size: Paper.size, format: format).image { renderer in
+        return UIGraphicsImageRenderer(size: Paper.size, format: format).image { renderer in
             let context = renderer.cgContext
             Paper.paint(context, dark: dark && pdf == nil, style: pdf == nil ? style : .plain)
             if let pdf { Paper.drawPDFPage(pdf, in: context) }
@@ -1271,8 +1503,6 @@ private struct NotebookView: View {
                 }
             }
         }
-        guard let png = image.pngData() else { throw CocoaError(.fileWriteUnknown) }
-        return png
     }
 
     private func sendToNotion() {
