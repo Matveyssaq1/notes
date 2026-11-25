@@ -1,0 +1,111 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000001 = {isa = PBXBuildFile; fileRef = 200000000000000000000001; };
+		100000000000000000000002 = {isa = PBXBuildFile; fileRef = 200000000000000000000002; };
+		100000000000000000000003 = {isa = PBXBuildFile; fileRef = 200000000000000000000003; };
+		100000000000000000000004 = {isa = PBXBuildFile; fileRef = 200000000000000000000004; };
+		100000000000000000000005 = {isa = PBXBuildFile; fileRef = 200000000000000000000007; };
+		100000000000000000000006 = {isa = PBXBuildFile; fileRef = 200000000000000000000008; };
+		100000000000000000000007 = {isa = PBXBuildFile; fileRef = 200000000000000000000009; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		200000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolyaApp.swift; sourceTree = "<group>"; };
+		200000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
+		200000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paper.swift; sourceTree = "<group>"; };
+		200000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notion.swift; sourceTree = "<group>"; };
+		200000000000000000000005 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Polya.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		200000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		200000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeGeometry.swift; sourceTree = "<group>"; };
+		200000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeEraser.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		300000000000000000000001 = {
+			isa = PBXGroup;
+			children = (300000000000000000000002, 300000000000000000000003);
+			sourceTree = "<group>";
+		};
+		300000000000000000000002 = {
+			isa = PBXGroup;
+			children = (200000000000000000000001, 200000000000000000000002, 200000000000000000000003, 200000000000000000000004, 200000000000000000000007, 200000000000000000000008, 200000000000000000000009);
+			path = Polya;
+			sourceTree = "<group>";
+		};
+		300000000000000000000003 = {
+			isa = PBXGroup;
+			children = (200000000000000000000005);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		400000000000000000000001 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600000000000000000000002;
+			buildPhases = (500000000000000000000001, 500000000000000000000002);
+			buildRules = ();
+			dependencies = ();
+			name = Polya;
+			productName = Polya;
+			productReference = 200000000000000000000005;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		400000000000000000000002 = {
+			isa = PBXProject;
+			buildConfigurationList = 600000000000000000000001;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (ru, Base);
+			mainGroup = 300000000000000000000001;
+			productRefGroup = 300000000000000000000003;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (400000000000000000000001);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		500000000000000000000002 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (100000000000000000000005);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		500000000000000000000001 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (100000000000000000000001, 100000000000000000000002, 100000000000000000000003, 100000000000000000000004, 100000000000000000000006, 100000000000000000000007);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		700000000000000000000001 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; };
+		700000000000000000000002 = {isa = XCBuildConfiguration; name = Release; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SWIFT_COMPILATION_MODE = wholemodule; }; };
+		700000000000000000000003 = {isa = XCBuildConfiguration; name = Debug; baseConfigurationReference = 200000000000000000000006; buildSettings = {}; };
+		700000000000000000000004 = {isa = XCBuildConfiguration; name = Release; baseConfigurationReference = 200000000000000000000006; buildSettings = {}; };
+		200000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = SOURCE_ROOT; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		600000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (700000000000000000000001, 700000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		600000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (700000000000000000000003, 700000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 400000000000000000000002;
+}

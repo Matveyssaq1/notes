@@ -1,0 +1,14 @@
+CODE_SIGN_STYLE = Automatic
+CURRENT_PROJECT_VERSION = 14
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_KEY_CFBundleDisplayName = notes
+INFOPLIST_KEY_UILaunchScreen_Generation = YES
+INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+MARKETING_VERSION = 1.8
+PRODUCT_BUNDLE_IDENTIFIER = study.polya.notebooks
+PRODUCT_NAME = Polya
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator
+SWIFT_VERSION = 5.0
+TARGETED_DEVICE_FAMILY = 2
+INFOPLIST_KEY_NSMicrophoneUsageDescription = Запись лекций и семинаров в тетради.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
